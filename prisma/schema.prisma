@@ -1,4 +1,3 @@
-// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,17 +5,312 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
-// Ejemplo de un modelo de usuario
+// ====================================================================
+// ENUMS
+// ====================================================================
+
+enum UserRole {
+  ADMIN
+  COMERCIANTE
+  FABRICANTE
+  PROVEEDOR
+  LOGISTICA
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED // Añadido estado intermedio
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum ShipmentStatus { // Añadido para el modelo Shipment
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+// ====================================================================
+// CORE MODELS
+// ====================================================================
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  firstName String
-  lastName  String
-  role      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String         @id @default(cuid())
+  email           String         @unique
+  password        String
+  firstName       String
+  lastName        String
+  phone           String?
+  avatar          String?
+  isActive        Boolean        @default(true)
+  emailVerified   Boolean        @default(false)
+  role            UserRole       @default(COMERCIANTE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  comerciante     Comerciante?
+  fabricante      Fabricante?
+  proveedor       Proveedor?
+  logistica       Logistica?
+  loginSessions   LoginSession[]
+  notifications   Notification[]
+
+  @@map("users")
+}
+
+model LoginSession {
+  id              String    @id @default(cuid())
+  userId          String
+  token           String    @unique
+  refreshToken    String    @unique
+  expiresAt       DateTime
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt // Añadido updatedAt
+  
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("login_sessions")
+}
+
+// ====================================================================
+// ROLE PROFILES
+// ====================================================================
+
+model Comerciante {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  businessName    String
+  ruc             String          @unique
+  address         String
+  city            String
+  country         String
+  website         String?
+  logo            String?
+  description     String?
+  
+  // Relaciones
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inventory       InventoryItem[]
+  orders          Order[]
+  favorites       Favorite[]
+
+  @@map("comerciantes")
+}
+
+model Fabricante {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  companyName     String
+  ruc             String          @unique
+  address         String
+  city            String
+  country         String
+  website         String?
+  logo            String?
+  description     String?
+
+  // Relaciones
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products        Product[]
+  orders          Order[]
+
+  @@map("fabricantes")
+}
+
+model Proveedor {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  companyName     String
+  ruc             String          @unique
+  address         String
+  city            String
+  country         String
+  website         String?
+  logo            String?
+  description     String?
+
+  // Relaciones
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  materials       Material[]
+  orders          Order[]
+
+  @@map("proveedores")
+}
+
+model Logistica {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  companyName     String
+  ruc             String          @unique
+  address         String
+  city            String
+  country         String
+  website         String?
+  logo            String?
+  description     String?
+
+  // Relaciones
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shipments       Shipment[]
+  orders          Order[]
+
+  @@map("logistica")
+}
+
+// ====================================================================
+// COMMERCE MODELS
+// ====================================================================
+
+model Product {
+  id              String          @id @default(cuid())
+  name            String
+  description     String
+  category        String
+  price           Decimal
+  currency        String          @default("USD")
+  sku             String          @unique
+  images          String[]
+  stock           Int             @default(0)
+  fabricanteId    String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relaciones
+  fabricante      Fabricante      @relation(fields: [fabricanteId], references: [id], onDelete: Cascade)
+  orderItems      OrderItem[]
+  favorites       Favorite[]      // Relación inversa para Favorite
+  inventoryItems  InventoryItem[] // Relación inversa para InventoryItem
+
+  @@map("products")
+}
+
+model Material {
+  id              String          @id @default(cuid())
+  name            String
+  description     String
+  category        String
+  unit            String
+  price           Decimal
+  currency        String          @default("USD")
+  proveedorId     String
+  stock           Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relaciones
+  proveedor       Proveedor       @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  orderItems      OrderItem[]
+
+  @@map("materials")
+}
+
+model Order {
+  id              String          @id @default(cuid())
+  orderNumber     String          @unique
+  status          OrderStatus     @default(PENDING)
+  totalAmount     Decimal
+  currency        String          @default("USD")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt // Añadido updatedAt
+
+  // IDs de relación (comerciante es el comprador, los otros son proveedores/fabricantes)
+  comercianteId   String
+  fabricanteId    String?
+  proveedorId     String?
+  logisticaId     String?
+
+  // Relaciones
+  comerciante     Comerciante     @relation(fields: [comercianteId], references: [id])
+  fabricante      Fabricante?     @relation(fields: [fabricanteId], references: [id])
+  proveedor       Proveedor?      @relation(fields: [proveedorId], references: [id])
+  logistica       Logistica?      @relation(fields: [logisticaId], references: [id])
+  orderItems      OrderItem[]
+  shipments       Shipment[]      // Relación inversa para Shipment
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String    @id @default(cuid())
+  orderId         String
+  productId       String?
+  materialId      String?
+  quantity        Int
+  unitPrice       Decimal
+  totalPrice      Decimal   // << CORRECCIÓN: Agregar precio total del ítem
+  
+  // Relaciones
+  order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade) // Cascade en OrderItem es común
+  product         Product?  @relation(fields: [productId], references: [id])
+  material        Material? @relation(fields: [materialId], references: [id])
+
+  @@map("order_items")
+}
+
+// ====================================================================
+// AUXILIARY MODELS (Faltantes)
+// ====================================================================
+
+model Favorite { 
+  id            String      @id @default(cuid())
+  comercianteId String
+  productId     String
+  createdAt     DateTime    @default(now())
+  
+  comerciante   Comerciante @relation(fields: [comercianteId], references: [id], onDelete: Cascade)
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([comercianteId, productId])
+  @@map("favorites")
+}
+
+model InventoryItem { 
+  id            String      @id @default(cuid())
+  productId     String
+  comercianteId String
+  quantity      Int
+  location      String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  comerciante   Comerciante @relation(fields: [comercianteId], references: [id], onDelete: Cascade)
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([comercianteId, productId])
+  @@map("inventory_items")
+}
+
+model Shipment { 
+  id              String         @id @default(cuid())
+  orderId         String
+  logisticaId     String
+  status          ShipmentStatus @default(PENDING)
+  trackingNumber  String?        @unique
+  deliveryDate    DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  logistica       Logistica      @relation(fields: [logisticaId], references: [id])
+
+  @@map("shipments")
+}
+
+model Notification {
+  id              String    @id @default(cuid())
+  userId          String
+  message         String
+  read            Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt 
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }
