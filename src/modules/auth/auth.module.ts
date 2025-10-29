@@ -1,32 +1,25 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { AuthLib } from './auth.lib';
 import { PrismaService } from '../../prisma/prisma.service';
-import { JwtConfig } from '../../config/configuration.interface';
-
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => {
-        const jwtConfig = configService.get<JwtConfig>('app.jwt');
-         if (!jwtConfig) {
-    throw new Error('JWT configuration not found');
-  }
-        return {
-          secret: jwtConfig.secret,
-          signOptions: { 
-            expiresIn: jwtConfig.expiresIn as number },
-        };
-      },
-      inject: [ConfigService],
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    JwtModule.register({
+      global: true,
+      secret: process.env.JWT_SECRET || 'supersecret',
+      signOptions: { expiresIn: '8h' },
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PrismaService],
+  providers: [AuthService, AuthLib, PrismaService, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

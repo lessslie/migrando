@@ -1,57 +1,24 @@
-// src/modules/auth/dto/register.dto.ts
-import { 
-  IsEmail, 
-  IsNotEmpty, 
-  IsString, 
-  MinLength, 
-  MaxLength,
-  IsOptional
-} from 'class-validator';
+// register.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsString, MinLength, IsEnum } from 'class-validator';
+import { UserRole } from '@prisma/client';
 
 export class RegisterDto {
-  @ApiProperty({ 
-    example: 'usuario@ejemplo.com',
-    description: 'Correo electrónico del usuario'
-  })
-  @IsEmail()
-  @IsNotEmpty()
+  @ApiProperty() @IsEmail() 
   email: string;
 
-  @ApiProperty({ 
-    example: 'contraseña123',
-    description: 'Contraseña del usuario (mínimo 6 caracteres)',
-    minLength: 6
-  })
-  @IsString()
-  @MinLength(6)
-  @MaxLength(100)
+  @ApiProperty() @IsString() @MinLength(6) 
   password: string;
 
-  @ApiProperty({ 
-    example: 'Juan',
-    description: 'Nombre del usuario'
-  })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(50)
+  @ApiProperty() @IsString() 
   firstName: string;
 
-  @ApiProperty({ 
-    example: 'Pérez',
-    description: 'Apellido del usuario'
-  })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(50)
+  @ApiProperty() @IsString() 
   lastName: string;
 
-  @ApiProperty({ 
-    required: false,
-    example: 'USER',
-    description: 'Rol del usuario (opcional, por defecto: USER)'
-  })
-  @IsString()
-  @IsOptional()
-  role?: string;
+  @ApiProperty() @IsString() 
+  phone?: string;
+
+  @ApiProperty({ enum: UserRole }) @IsEnum(UserRole) 
+  role: UserRole;
 }

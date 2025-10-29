@@ -1,111 +1,116 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-// src/modules/auth/auth.service.ts
-import { 
-  Injectable, 
-  UnauthorizedException, 
-  ConflictException,
-  BadRequestException
+/* eslint-disable @typescript-eslint/require-await */
+// src/auth/auth.service.ts
+import {
+  Injectable,
+  BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
-import { LoginDto } from './dto/login.dto';
+import { AuthLib } from './auth.lib';
 import { RegisterDto } from './dto/register.dto';
-import * as bcrypt from 'bcryptjs';
+import { LoginDto } from './dto/signIn.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { Response } from 'express';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
-  ) {}
+  constructor(private prisma: PrismaService, private authLib: AuthLib) {}
 
-  async validateUser(email: string, pass: string): Promise<{ 
-    id: string; 
-    email: string; 
-    firstName: string; 
-    lastName: string; 
-    role: string 
-  } | null> {
-    const user = await this.prisma.user.findUnique({ 
-      where: { email } 
+  async register(dto: RegisterDto, res: Response) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
     });
+    if (existing) throw new BadRequestException('User already exists');
 
-    if (user && (await bcrypt.compare(pass, user.password))) {
-      const { password, ...result } = user;
-      return result;
-    }
-    return null;
-  }
+    const hash = await this.authLib.hashPassword(dto.password);
 
-  async login(loginDto: LoginDto): Promise<{ 
-    access_token: string; 
-    user: { 
-      id: string; 
-      email: string; 
-      firstName: string; 
-      lastName: string; 
-      role: string 
-    } 
-  }> {
-    const user = await this.validateUser(loginDto.email, loginDto.password);
-    if (!user) {
-      throw new UnauthorizedException('Credenciales inválidas');
-    }
-
-    const payload = { 
-      email: user.email, 
-      sub: user.id, 
-      role: user.role 
-    };
-
-    return {
-      access_token: this.jwtService.sign(payload),
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        password: hash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        phone: dto.phone,
+        role: dto.role,
       },
-    };
-  }
-
-  async register(registerDto: RegisterDto): Promise<{ 
-    id: string; 
-    email: string; 
-    firstName: string; 
-    lastName: string; 
-    role: string 
-  }> {
-    // Verificar si el usuario ya existe
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: registerDto.email },
     });
 
-    if (existingUser) {
-      throw new ConflictException('El correo electrónico ya está en uso');
-    }
+    const accessToken = await this.authLib.generateToken(user);
+    const refreshToken = await this.authLib.generateRefreshToken(user);
+    await this.authLib.addCookie(res, accessToken);
 
-    // Hashear la contraseña
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+    return { message: 'User registered successfully', user, accessToken, refreshToken };
+  }
 
+  async login(dto: LoginDto, res: Response) {
+    const user = await this.authLib.validateUser(dto.email);
+    const valid = await this.authLib.comparePassword(dto.password, user.password);
+    if (!valid) throw new UnauthorizedException('Invalid credentials');
+
+    const accessToken = await this.authLib.generateToken(user);
+    const refreshToken = await this.authLib.generateRefreshToken(user);
+    await this.authLib.addCookie(res, accessToken);
+
+    return { message: 'Login successful', user, accessToken, refreshToken };
+  }
+
+  async refresh(dto: RefreshTokenDto) {
     try {
-      const user = await this.prisma.user.create({
-        data: {
-          email: registerDto.email,
-          password: hashedPassword,
-          firstName: registerDto.firstName,
-          lastName: registerDto.lastName,
-          role: 'ADMIN', // O el rol por defecto que prefieras
-        },
+      const payload = await this.authLib['jwtService'].verify(dto.refreshToken, {
+        secret: process.env.JWT_SECRET as string,
       });
 
-      const { password, ...result } = user;
-      return result;
-    } catch (error) {
-      throw new BadRequestException('Error al crear el usuario');
+      // 🔥 obtenemos el id del payload, no el email del dto
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.id },
+      });
+
+      if (!user) throw new UnauthorizedException('Invalid token');
+
+      const accessToken = await this.authLib.generateToken(user);
+      return { accessToken };
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  async logout(res: Response) {
+    res.clearCookie('auth-token');
+    return { message: 'Logged out successfully' };
+  }
+
+  async changePassword(user: any, dto: ChangePasswordDto) {
+    const found = await this.prisma.user.findUnique({
+      where: { id: user.id },
+    });
+    if (!found) throw new UnauthorizedException('User not found');
+
+    const valid = await this.authLib.comparePassword(
+      dto.currentPassword,
+      found.password,
+    );
+    if (!valid) throw new UnauthorizedException('Incorrect current password');
+
+    const newHash = await this.authLib.hashPassword(dto.newPassword);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { password: newHash },
+    });
+
+    return { message: 'Password updated successfully' };
+  }
+
+
+  async getProfile(user: any) {
+    return this.prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        comerciante: true,
+        fabricante: true,
+        logistica: true,
+        proveedor: true,
+      },
+    });
   }
 }
