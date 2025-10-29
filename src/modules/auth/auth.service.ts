@@ -98,7 +98,7 @@ export class AuthService {
           password: hashedPassword,
           firstName: registerDto.firstName,
           lastName: registerDto.lastName,
-          role: 'USER', // O el rol por defecto que prefieras
+          role: 'ADMIN', // O el rol por defecto que prefieras
         },
       });
 
