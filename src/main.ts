@@ -15,7 +15,7 @@ import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { 
-    cors: true
+  
   });
 
   // ✅ Logger nativo de NestJS
@@ -24,7 +24,7 @@ async function bootstrap() {
   // Configuración
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);
-  const corsOrigin = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000');
+  const corsOrigin = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000, https://fabriconnect.vercel.app');
 
   // Configuración de Swagger
   const config = new DocumentBuilder()
@@ -103,6 +103,8 @@ app.useGlobalPipes(
   
   logger.log(`🚀 Aplicación ejecutándose en el puerto ${port}`);
   logger.log(`📚 Documentación de la API disponible en http://localhost:${port}/api`);
+  console.log(`🚀 Aplicación ejecutándose en el puerto ${port}`);
+  console.log(`📚 Documentación de la API disponible en https://migrando.onrender.com/api`);
 }
 
 bootstrap().catch(err => {
