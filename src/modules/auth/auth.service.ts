@@ -57,9 +57,7 @@ export class AuthService {
 
   async refresh(dto: RefreshTokenDto) {
     try {
-      const payload = await this.authLib['jwtService'].verify(dto.refreshToken, {
-        secret: process.env.JWT_SECRET as string,
-      });
+     const payload = await this.authLib.verifyToken(dto.refreshToken);
 
       // 🔥 obtenemos el id del payload, no el email del dto
       const user = await this.prisma.user.findUnique({

@@ -2,8 +2,8 @@
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Injectable, ForbiddenException } from '@nestjs/common';
-import { User } from '@prisma/client';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import type { User } from '@prisma/client';
 
 @Injectable()
 export class AuthLib {
@@ -14,13 +14,15 @@ export class AuthLib {
 
     // ✅ Encripta la contraseña
     async hashPassword(password: string): Promise<string> {
-        return bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, 10);
+    return hash;
     }
 
     // ✅ Compara contraseña ingresada con la almacenada
-    async comparePassword(password: string, hash: string): Promise<boolean> {
-        return bcrypt.compare(password, hash);
-    }
+   async comparePassword(password: string, hash: string): Promise<boolean> {
+    const isValid = await bcrypt.compare(password, hash);
+    return isValid;
+}
 
     // ✅ Genera un token JWT con datos básicos del usuario
     async generateToken(user: User): Promise<string> {
@@ -51,8 +53,8 @@ export class AuthLib {
     }
 
     // ✅ Valida usuario con Prisma
-    async validateUser(email: string) {
-        const user = await this.prisma.user.findUnique({
+  async validateUser(email: string): Promise<User> {
+    const user = await this.prisma.user.findUnique({
         where: { email },
         include: {
             comerciante: true,
@@ -60,8 +62,18 @@ export class AuthLib {
             logistica: true,
             proveedor: true,
         },
-        });
-        if (!user) throw new ForbiddenException('User not found');
-        return user;
+    });
+    
+    if (!user) {
+        throw new UnauthorizedException('User not found'); // ← Cambiá también esto
     }
+    
+    return user;
+}
+
+    async verifyToken(token: string): Promise<any> {
+  return this.jwtService.verify(token, {
+    secret: process.env.JWT_SECRET,
+  });
+}
 }
