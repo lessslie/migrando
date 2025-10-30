@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import config from './config/configuration';
 import { configValidationSchema } from './config/configuration.schema';
 import { UsersModule } from './modules/users/users.module';
+import { ProductsModule } from './modules/products/products.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { UsersModule } from './modules/users/users.module';
     PrismaModule,
     AuthModule,
     UsersModule,
+    ProductsModule,
   ],
 })
 export class AppModule {}
