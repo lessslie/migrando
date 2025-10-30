@@ -174,7 +174,7 @@ model Material {
 model Order {
   id            String      @id @default(cuid())
   orderNumber   String      @unique
-  status        OrderStatus @default(PENDING)
+  status        OrderStatus @default(PENDIENTE)
   totalAmount   Decimal     @default(0)
   currency      String      @default("USD")
   createdAt     DateTime    @default(now())
@@ -250,7 +250,7 @@ model Shipment {
   id             String         @id @default(cuid())
   orderId        String
   logisticaId    String
-  status         ShipmentStatus @default(PENDING)
+  status         ShipmentStatus @default(PENDIENTE)
   trackingNumber String?        @unique
   deliveryDate   DateTime?
   createdAt      DateTime       @default(now())

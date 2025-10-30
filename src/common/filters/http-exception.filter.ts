@@ -1,44 +1,41 @@
-// src/common/filters/http-exception.filter.ts
-import { 
-  ExceptionFilter, 
-  Catch, 
-  ArgumentsHost, 
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
   HttpException,
   HttpStatus,
-  Logger 
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
-@Catch()
+@Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const status = exception.getStatus();
 
-    const status = 
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const exceptionResponse = exception.getResponse();
+    const errorResponse = typeof exceptionResponse === 'string' 
+      ? { message: exceptionResponse }
+      : (exceptionResponse as any);
 
-    const message = 
-      exception instanceof Error ? exception.message : 'Error interno del servidor';
-
-    this.logger.error({
-      message,
+    const errorPayload = {
       statusCode: status,
-      path: request.url,
-      timestamp: new Date().toISOString(),
-      stack: exception instanceof Error ? exception.stack : undefined,
-    });
-
-    response.status(status).json({
-      statusCode: status,
-      message,
+      message: errorResponse.message || exception.message,
+      ...(errorResponse.errors && { errors: errorResponse.errors }), // Para errores de validación
       timestamp: new Date().toISOString(),
       path: request.url,
-    });
+    };
+
+    // Solo logea el error sin el stack completo
+    this.logger.error(
+      `${request.method} ${request.url} - ${status} - ${JSON.stringify(errorResponse.message || exception.message)}`
+    );
+
+    response.status(status).json(errorPayload);
   }
 }

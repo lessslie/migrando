@@ -3,10 +3,11 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { 
   ValidationPipe, 
   HttpStatus,
-  ClassSerializerInterceptor 
+  ClassSerializerInterceptor,
+  Logger, // ✅ Logger nativo de NestJS
+  HttpException
 } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -14,13 +15,11 @@ import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { 
-    bufferLogs: true,
     cors: true
   });
 
-  // Configuración del logger
-  const logger = app.get(Logger);
-  app.useLogger(logger);
+  // ✅ Logger nativo de NestJS
+  const logger = new Logger('Bootstrap');
 
   // Configuración
   const configService = app.get(ConfigService);
@@ -61,17 +60,32 @@ async function bootstrap() {
   });
 
   // Configuración global de pipes
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: true,
+    errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
+    exceptionFactory: (errors) => {
+      const messages = errors.map((error) => ({
+        field: error.property,
+        errors: Object.values(error.constraints || {}),
+      }));
+      
+      return new HttpException(
+        {
+          statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+          message: 'Error de validación',
+          errors: messages,
+        },
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    },
+  }),
+);
 
   // Configuración global de interceptores
   const reflector = app.get(Reflector);
@@ -85,13 +99,13 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Configuración del puerto
-  await app.listen(port, '0.0.0.0', () => {
-    logger.log(`Aplicación ejecutándose en el puerto ${port}`);
-    logger.log(`Documentación de la API disponible en /api`);
-  });
+  await app.listen(port, '0.0.0.0');
+  
+  logger.log(`🚀 Aplicación ejecutándose en el puerto ${port}`);
+  logger.log(`📚 Documentación de la API disponible en http://localhost:${port}/api`);
 }
 
 bootstrap().catch(err => {
-  console.error('Error al iniciar la aplicación:', err);
+  console.error('❌ Error al iniciar la aplicación:', err);
   process.exit(1);
 });

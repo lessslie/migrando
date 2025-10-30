@@ -5,7 +5,6 @@ import { CreateProductDto } from './dto/create-products.dto';
 import { UpdateProductDto } from './dto/update-products.dto';
 import { FilterProductDto } from './dto/filter-product.dto';
 import { Product } from './entities/products.entity';
-import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
@@ -34,7 +33,7 @@ export class ProductsService {
   };
   
   if (updateProductDto.price !== undefined) {
-    updateData.price = new Prisma.Decimal(updateProductDto.price);
+   updateData.price = updateProductDto.price;
   }
 
   return this.repository.update(id, updateData);
@@ -45,10 +44,11 @@ export class ProductsService {
   }
 
   // Método para activar/desactivar producto
-  async toggleStatus(id: string, isActive: boolean): Promise<Product> {
-    const product = await this.findOne(id);
-    return this.repository.update(id, { isActive });
-  }
+// Método para activar/desactivar producto
+async toggleStatus(id: string, isActive: boolean): Promise<Product> {
+  await this.findOne(id); // Solo valida que el producto existe
+  return this.repository.update(id, { isActive });
+}
 
   // Métodos adicionales de negocio
   async checkStock(productId: string, quantity: number): Promise<boolean> {

@@ -3,7 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { User } from '@prisma/client';
 
 @Injectable()
 export class AuthLib {
@@ -25,7 +25,7 @@ export class AuthLib {
 }
 
     // ✅ Genera un token JWT con datos básicos del usuario
-    async generateToken(user: Prisma.User): Promise<string> {
+    async generateToken(user: User): Promise<string>{
         const payload = { id: user.id, email: user.email, role: user.role };
         return this.jwtService.sign(payload, {
         secret: process.env.JWT_SECRET,
@@ -34,7 +34,7 @@ export class AuthLib {
     }
 
     // ✅ Genera un refresh token
-    async generateRefreshToken(user: Prisma.User): Promise<string> {
+    async generateRefreshToken(user: User): Promise<string> {
         const payload = { id: user.id, email: user.email };
         return this.jwtService.sign(payload, {
         secret: process.env.JWT_SECRET,
@@ -53,7 +53,7 @@ export class AuthLib {
     }
 
     // ✅ Valida usuario con Prisma
-  async validateUser(email: string): Promise<Prisma.User> {
+  async validateUser(email: string): Promise<User> {
     const user = await this.prisma.user.findUnique({
         where: { email },
         include: {
