@@ -28,6 +28,8 @@ model User {
   proveedor     Proveedor?
 
   @@map("users")
+  @@index([email])
+  @@index([role])
 }
 
 model LoginSession {
@@ -42,6 +44,8 @@ model LoginSession {
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("login_sessions")
+  @@index([userId])
+  @@index([token])
 }
 
 model Comerciante {
@@ -61,6 +65,7 @@ model Comerciante {
   orders       Order[]
 
   @@map("comerciantes")
+  @@index([ruc])
 }
 
 model Fabricante {
@@ -79,6 +84,7 @@ model Fabricante {
   products    Product[]
 
   @@map("fabricantes")
+  @@index([ruc])
 }
 
 model Proveedor {
@@ -97,6 +103,7 @@ model Proveedor {
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("proveedores")
+  @@index([ruc])
 }
 
 model Logistica {
@@ -115,6 +122,7 @@ model Logistica {
   shipments   Shipment[]
 
   @@map("logistica")
+  @@index([ruc])
 }
 
 model Product {
@@ -122,12 +130,13 @@ model Product {
   name           String
   description    String
   category       String
-  price          Decimal
+  price          Decimal         @default(0)
   currency       String          @default("USD")
   sku            String          @unique
   images         String[]
   stock          Int             @default(0)
   fabricanteId   String
+  isActive       Boolean         @default(true)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   favorites      Favorite[]
@@ -136,6 +145,10 @@ model Product {
   fabricante     Fabricante      @relation(fields: [fabricanteId], references: [id], onDelete: Cascade)
 
   @@map("products")
+  @@index([sku])
+  @@index([fabricanteId])
+  @@index([category])
+  @@index([isActive])
 }
 
 model Material {
@@ -144,23 +157,25 @@ model Material {
   description String
   category    String
   unit        String
-  price       Decimal
+  price       Decimal     @default(0)
   currency    String      @default("USD")
-  proveedorId String
   stock       Int         @default(0)
+  proveedorId String
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   proveedor   Proveedor   @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
   orderItems  OrderItem[]
 
   @@map("materials")
+  @@index([proveedorId])
+  @@index([category])
 }
 
 model Order {
   id            String      @id @default(cuid())
   orderNumber   String      @unique
   status        OrderStatus @default(PENDING)
-  totalAmount   Decimal
+  totalAmount   Decimal     @default(0)
   currency      String      @default("USD")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -169,13 +184,17 @@ model Order {
   proveedorId   String?
   logisticaId   String?
   orderItems    OrderItem[]
+  shipments     Shipment[]
   comerciante   Comerciante @relation(fields: [comercianteId], references: [id])
   fabricante    Fabricante? @relation(fields: [fabricanteId], references: [id])
   logistica     Logistica?  @relation(fields: [logisticaId], references: [id])
   proveedor     Proveedor?  @relation(fields: [proveedorId], references: [id])
-  shipments     Shipment[]
 
   @@map("orders")
+  @@index([orderNumber])
+  @@index([comercianteId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -183,14 +202,17 @@ model OrderItem {
   orderId    String
   productId  String?
   materialId String?
-  quantity   Int
-  unitPrice  Decimal
-  totalPrice Decimal
+  quantity   Int       @default(1)
+  unitPrice  Decimal   @default(0)
+  totalPrice Decimal   @default(0)
   material   Material? @relation(fields: [materialId], references: [id])
   order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product    Product?  @relation(fields: [productId], references: [id])
 
   @@map("order_items")
+  @@index([orderId])
+  @@index([productId])
+  @@index([materialId])
 }
 
 model Favorite {
@@ -203,13 +225,15 @@ model Favorite {
 
   @@unique([comercianteId, productId])
   @@map("favorites")
+  @@index([comercianteId])
+  @@index([productId])
 }
 
 model InventoryItem {
   id            String      @id @default(cuid())
   productId     String
   comercianteId String
-  quantity      Int
+  quantity      Int         @default(0)
   location      String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -218,6 +242,8 @@ model InventoryItem {
 
   @@unique([comercianteId, productId])
   @@map("inventory_items")
+  @@index([comercianteId])
+  @@index([productId])
 }
 
 model Shipment {
@@ -233,6 +259,10 @@ model Shipment {
   order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("shipments")
+  @@index([orderId])
+  @@index([logisticaId])
+  @@index([status])
+  @@index([trackingNumber])
 }
 
 model Notification {
@@ -245,6 +275,8 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+  @@index([userId])
+  @@index([read])
 }
 
 enum UserRole {
@@ -256,17 +288,17 @@ enum UserRole {
 }
 
 enum OrderStatus {
-  PENDING
-  PROCESSING
-  CONFIRMED
-  SHIPPED
-  DELIVERED
-  CANCELLED
+  PENDIENTE
+  PROCESANDO
+  CONFIRMADO
+  ENVIADO
+  ENTREGADO
+  CANCELADO
 }
 
 enum ShipmentStatus {
-  PENDING
-  IN_TRANSIT
-  DELIVERED
-  FAILED
+  PENDIENTE
+  EN_TRANSITO
+  ENTREGADO
+  FALLIDO
 }
