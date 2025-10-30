@@ -15,7 +15,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
                 try {
                     // Intenta la conexión
                     await this.$connect();
-                    console.log('✅ Prisma connected to Render Postgres');
+                    console.log('✅ Prisma connected to Supabase Postgres');
                     return; // Conexión exitosa, salir de la función
                 } catch (err) {
                     retries -= 1;
