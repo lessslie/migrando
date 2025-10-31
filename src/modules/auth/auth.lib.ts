@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+// src/auth/lib/auth.lib.ts
 import * as bcrypt from 'bcrypt';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
 
 @Injectable()
 export class AuthLib {
@@ -11,45 +13,45 @@ export class AuthLib {
         private readonly jwtService: JwtService,
     ) {}
 
-    // ✅ Encripta la contraseña
+    // 🔐 Encriptar / comparar contraseñas
     async hashPassword(password: string): Promise<string> {
         return bcrypt.hash(password, 10);
     }
 
-    // ✅ Compara contraseñas
     async comparePassword(password: string, hash: string): Promise<boolean> {
         return bcrypt.compare(password, hash);
     }
 
-    // ✅ Genera access token (solo usa id, email, role)
+    // 🔹 Generar tokens
     async generateToken(user: { id: string; email: string; role: string }): Promise<string> {
-        const payload = { id: user.id, email: user.email, role: user.role };
-        return this.jwtService.sign(payload, {
-        secret: process.env.JWT_SECRET,
-        expiresIn: '8h',
-        });
+        return this.jwtService.sign(
+        { id: user.id, email: user.email, role: user.role },
+        );
     }
 
-    // ✅ Genera refresh token (solo id + email)
     async generateRefreshToken(user: { id: string; email: string }): Promise<string> {
-        const payload = { id: user.id, email: user.email };
-        return this.jwtService.sign(payload, {
-        secret: process.env.JWT_SECRET,
-        expiresIn: '7d',
-        });
+        return this.jwtService.sign(
+        { id: user.id, email: user.email },
+        { expiresIn: '7d' },
+        );
     }
 
-    // ✅ Cookie segura
-    async addCookie(res: any, token: string) {
+    // 🔸 Cookie segura
+    addCookie(res: any, token: string) {
         res.cookie('auth-token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
         maxAge: 8 * 60 * 60 * 1000,
         });
     }
 
-    // ✅ Buscar usuario por email
+    clearCookie(res: any) {
+        res.clearCookie('auth-token', { path: '/' });
+    }
+
+    // 🔹 Buscar usuario
     async validateUser(email: string) {
         const user = await this.prisma.user.findUnique({
         where: { email },
@@ -64,8 +66,7 @@ export class AuthLib {
         return user;
     }
 
-    // ✅ Verifica token
-    async verifyToken(token: string): Promise<any> {
-        return this.jwtService.verify(token, { secret: process.env.JWT_SECRET });
+    async verifyToken(token: string) {
+        return await this.jwtService.verify(token);
     }
-}
+    }

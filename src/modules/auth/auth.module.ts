@@ -1,28 +1,22 @@
-// src/modules/auth/auth.module.ts
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule } from '@nestjs/config';
 import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
 import { AuthLib } from './auth.lib';
 import { PrismaService } from '../../prisma/prisma.service';
-import { JwtStrategy } from './strategies/jwt.strategy';
-import { UsersModule } from '../users/users.module'; // ✅ Importa este módulo
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
+import { UsersModule } from '../users/users.module';
+import { GoogleStrategy } from './strategies/google.strategy';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule,
     JwtModule.register({
-      global: true,
-      secret: process.env.JWT_SECRET || 'supersecret',
+      secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '8h' },
     }),
-    UsersModule, // ✅ Asegura la disponibilidad del repositorio
+    UsersModule,
   ],
-  controllers: [AuthController],
-  providers: [AuthService, AuthLib, PrismaService, JwtStrategy],
+  providers: [AuthService, AuthLib, PrismaService, GoogleStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

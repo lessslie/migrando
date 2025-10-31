@@ -32,6 +32,9 @@ export interface IUserRepository {
     // Crea un nuevo usuario
     create(data: Prisma.UserCreateInput): Promise<User>;
 
+    // Método para login/registro con Google
+    findOrCreateByGoogle(email: string, name: string, avatarUrl?: string): Promise<User>;
+
     // === MÉTODOS EXISTENTES PARA USER SERVICE ===
 
     // Busca un usuario con todas las relaciones (para el perfil/stats)

@@ -25,12 +25,29 @@ export class UserRepository implements IUserRepository {
 
     // =========================================================================
     // MÉTODOS PARA AUTH SERVICE
-    async findByEmail(email: string): Promise<User | null> {
-        // Incluimos 'password' para login
-        return this.prisma.user.findUnique({
-        where: { email },
-        select: { ...DEFAULT_SELECT, password: true },
-        }) as unknown as Promise<User | null>;
+
+    async findByEmail(email: string) {
+        return this.prisma.user.findUnique({ where: { email } });
+  }
+
+    async findOrCreateByGoogle(email: string, name: string, avatar?: string) {
+        const existing = await this.findByEmail(email);
+        if (existing) return existing;
+
+        const [firstName, ...rest] = name.split(' ');
+        const lastName = rest.join(' ');
+
+        return this.prisma.user.create({
+            data: {
+                email,
+                firstName,
+                lastName,
+                avatar,
+                password: '', // no password for OAuth
+                emailVerified: true,
+                role: 'COMERCIANTE', // por defecto en Fabriconnect
+            },
+        });
     }
 
     async create(data: Prisma.UserCreateInput): Promise<User> {

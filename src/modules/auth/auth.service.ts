@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
   Injectable,
@@ -10,23 +11,26 @@ import type { RegisterDto } from './dto/register.dto';
 import type { LoginDto } from './dto/signIn.dto';
 import type { RefreshTokenDto } from './dto/refresh-token.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
-import type { Response } from 'express';
 import type { IUserRepository } from '../users/user.repository.interface';
 import { USER_REPOSITORY } from '../users/user.repository.interface';
+import { OAuth2Client } from 'google-auth-library';
+import { PrismaService } from '../../prisma/prisma.service';
+import { Response } from 'express';
 
 @Injectable()
 export class AuthService {
+  private googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
   constructor(
-    @Inject(USER_REPOSITORY) 
+    @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
     private readonly authLib: AuthLib,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ===============================================================
   async register(dto: RegisterDto, res: Response) {
-    // ✅ Usar el repository (versión de tu compa)
     const existing = await this.userRepository.findByEmail(dto.email);
-    
     if (existing) throw new BadRequestException('User already exists');
 
     const hash = await this.authLib.hashPassword(dto.password);
@@ -42,7 +46,7 @@ export class AuthService {
 
     const accessToken = await this.authLib.generateToken(user);
     const refreshToken = await this.authLib.generateRefreshToken(user);
-    await this.authLib.addCookie(res, accessToken);
+    this.authLib.addCookie(res, accessToken);
 
     return {
       message: 'User registered successfully',
@@ -62,7 +66,7 @@ export class AuthService {
 
     const accessToken = await this.authLib.generateToken(user);
     const refreshToken = await this.authLib.generateRefreshToken(user);
-    await this.authLib.addCookie(res, accessToken);
+    this.authLib.addCookie(res, accessToken);
 
     return { message: 'Login successful', user, accessToken, refreshToken };
   }
@@ -86,9 +90,47 @@ export class AuthService {
   }
 
   // ===============================================================
-  logout(res: Response) {
-    res.clearCookie('auth-token');
-    return { message: 'Logged out successfully' };
+  // 🔹 Flujo Google (API-first, móvil, SPA)
+  async signInWithGoogle(dto: { email: string; name: string; avatarUrl?: string }, res: Response) {
+    if (!dto.email) throw new BadRequestException('Email is required');
+
+    const user = await this.userRepository.findOrCreateByGoogle(
+      dto.email,
+      dto.name,
+      dto.avatarUrl,
+    );
+
+    const token = await this.authLib.generateToken(user);
+    this.authLib.addCookie(res, token);
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        avatar: user.avatar,
+        role: user.role,
+      },
+    };
+  }
+
+  // 🔹 Flujo redireccional (web)
+  async validateGoogleUser(googleUser: any) {
+    const user = await this.userRepository.findOrCreateByGoogle(
+      googleUser.email,
+      googleUser.name,
+      googleUser.avatarUrl,
+    );
+    const token = await this.authLib.generateToken(user);
+    return { message: 'Autenticado con Google', token };
+  }
+
+  // ===============================================================
+  async signOut(res: Response) {
+    this.authLib.clearCookie(res);
+    return { message: 'User signed out successfully' };
   }
 
   // ===============================================================
