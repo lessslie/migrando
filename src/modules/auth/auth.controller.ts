@@ -18,80 +18,81 @@ import type { Request, Response } from 'express';
 import { GoogleAuthGuard } from './guards/google.guard';
 import { CreateGoogleDto } from './dto/create-google.dto';
 
-@ApiTags('Auth')
+@ApiTags('Autenticación')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // Registro normal
+  // 🟢 Registro tradicional
   @Post('register')
-  @ApiOperation({ summary: 'Register new user' })
+  @ApiOperation({ summary: 'Registrar un nuevo usuario' })
   @ApiBody({ type: RegisterDto })
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
     return this.authService.register(dto, res);
   }
 
-  // Login normal
+  // 🟢 Login tradicional (email y contraseña)
   @Post('login')
-  @ApiOperation({ summary: 'Login user' })
+  @ApiOperation({ summary: 'Iniciar sesión con credenciales' })
   @ApiBody({ type: LoginDto })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     return this.authService.login(dto, res);
   }
 
-  // 🔹 SPA / Mobile login
-  @ApiBody({ type: CreateGoogleDto })
-  @ApiOperation({ summary: 'User login with Google (SPA / mobile)' })
+  // 🟢 Login con Google (para SPA o móvil)
   @Post('login/google')
-  async loginWithGoogle(
-    @Body() dto: CreateGoogleDto, 
-    @Res({ passthrough: true }) res: Response
-  ) {
+  @ApiOperation({ summary: 'Iniciar sesión con Google (SPA / móvil)' })
+  @ApiBody({ type: CreateGoogleDto })
+  async loginWithGoogle(@Body() dto: CreateGoogleDto, @Res({ passthrough: true }) res: Response) {
     return this.authService.signInWithGoogle(dto, res);
   }
 
-  // 🔹 Web OAuth redirection flow
-  @ApiOperation({ summary: 'Redirect to Google OAuth login page' })
+  // 🟡 Redirección OAuth (para web)
   @Get('google')
+  @ApiOperation({ summary: 'Redirigir al inicio de sesión con Google (OAuth)' })
   @UseGuards(GoogleAuthGuard)
   async googleAuth() {
-    // Se redirige automáticamente a Google
+    // Redirige automáticamente al login de Google
   }
 
-  @ApiOperation({ summary: 'Handle Google OAuth callback' })
+  // 🟡 Callback de Google OAuth
   @Get('google/callback')
+  @ApiOperation({ summary: 'Procesar el callback de Google (OAuth)' })
   @UseGuards(GoogleAuthGuard)
   async googleAuthRedirect(@Req() req) {
     return this.authService.validateGoogleUser(req.user);
   }
 
-  // Logout
-  @ApiOperation({ summary: 'Logout current user' })
+  // 🔴 Cerrar sesión
   @Post('logout')
+  @ApiOperation({ summary: 'Cerrar sesión del usuario actual' })
   async logout(@Res({ passthrough: true }) res: Response) {
     return this.authService.signOut(res);
   }
 
+  // 🔁 Refrescar token
   @Post('refresh')
-  @ApiOperation({ summary: 'Refresh access token' })
+  @ApiOperation({ summary: 'Refrescar el token de acceso' })
   @ApiBody({ type: RefreshTokenDto })
   async refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto);
   }
 
+  // 🔒 Cambiar contraseña
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Change current user password' })
+  @ApiOperation({ summary: 'Cambiar la contraseña del usuario actual' })
   @ApiBody({ type: ChangePasswordDto })
   async changePassword(@Req() req: Request, @Body() dto: ChangePasswordDto) {
     return this.authService.changePassword(req.user, dto);
   }
 
+  // 👤 Obtener perfil
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiOperation({ summary: 'Obtener el perfil del usuario autenticado' })
   async getProfile(@Req() req: Request) {
     return this.authService.getProfile(req.user);
   }
