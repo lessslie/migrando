@@ -20,6 +20,8 @@ model User {
   role          UserRole       @default(COMERCIANTE)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?      // 👈 Soft delete
+
   comerciante   Comerciante?
   fabricante    Fabricante?
   loginSessions LoginSession[]

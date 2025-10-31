@@ -1,150 +1,104 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-// src/modules/users/users.service.ts
-
-import { Injectable, NotFoundException, Logger, Inject } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma, UserRole } from '@prisma/client';
+import { UserRepository } from './user.repository';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { Prisma, UserRole } from '@prisma/client';
 import { PaginationDto } from './dto/pagination.dto';
-import type { IUserRepository } from './user.repository.interface'; // Usar 'import type' para la interfaz (solo es un tipo)
-import { USER_REPOSITORY } from './user.repository.interface'; // Dejar el token como import normal (es un valor/constante)portar la Interfaz
 
 @Injectable()
 export class UsersService {
-    private readonly logger = new Logger(UsersService.name);
-
-    // Inyectar la interfaz del Repositorio
-    constructor(
-        @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
-    ) {}
+    constructor(private readonly userRepository: UserRepository) {}
 
     // =========================================================================
-    // RUTAS DE PERFIL DEL USUARIO (GET/PUT /profile)
+    // PERFIL DEL USUARIO AUTENTICADO
 
     async findProfile(userId: string) {
-        // Llama al Repositorio
-        const userData = await this.userRepository.findUserWithProfileData(userId);
+        const user = await this.userRepository.findUserWithProfileData(userId);
+        if (!user) throw new NotFoundException('Usuario no encontrado.');
 
-        if (!userData) {
-            throw new NotFoundException('User not found');
-        }
+        const profile = user.comerciante || user.fabricante || user.logistica || user.proveedor;
 
-        // La lógica de negocio se queda en el Service
-        const profileData = userData.comerciante || userData.fabricante || userData.logistica || userData.proveedor;
-
-        return {
-            ...userData,
-            profile: profileData,
-        };
+        return { ...user, profile };
     }
 
     async updateProfile(userId: string, data: UpdateProfileDto) {
-        // Llama al Repositorio
-        const updatedUser = await this.userRepository.updateProfile(userId, data);
+        const exists = await this.userRepository.findById(userId);
+        if (!exists) throw new NotFoundException('Usuario no encontrado.');
 
-        this.logger.log(`User profile updated: ${userId}`);
-        return updatedUser;
+        return this.userRepository.updateProfile(userId, data);
     }
 
     // =========================================================================
-    // RUTAS DE ADMINISTRACIÓN (requieren ADMIN)
+    // ADMIN
 
     async findAllUsers(dto: PaginationDto) {
         const skip = (dto.page - 1) * dto.limit;
-        
-        // La lógica de negocio/filtros se queda en el Service
         const where: Prisma.UserWhereInput = {};
 
         if (dto.search) {
-            where.OR = [
-                { firstName: { contains: dto.search, mode: 'insensitive' } },
-                { lastName: { contains: dto.search, mode: 'insensitive' } },
-                { email: { contains: dto.search, mode: 'insensitive' } },
-            ];
+        where.OR = [
+            { firstName: { contains: dto.search, mode: 'insensitive' } },
+            { lastName: { contains: dto.search, mode: 'insensitive' } },
+            { email: { contains: dto.search, mode: 'insensitive' } },
+        ];
         }
 
-        if (dto.role) {
-            where.role = dto.role as UserRole;
-        }
+        if (dto.role) where.role = dto.role as UserRole;
 
-        // Llama al Repositorio
-        const { users: usersData, totalCount } = await this.userRepository.findAll(where, skip, dto.limit);
-        
+        const { users, totalCount } = await this.userRepository.findAll(where, skip, dto.limit);
+
         return {
-            users: usersData,
-            pagination: {
-                page: dto.page,
-                limit: dto.limit,
-                totalCount,
-                totalPages: Math.ceil(totalCount / dto.limit),
-            },
+        users,
+        pagination: {
+            page: dto.page,
+            limit: dto.limit,
+            totalCount,
+            totalPages: Math.ceil(totalCount / dto.limit),
+        },
         };
     }
 
     async findUserById(id: string) {
-        // Llama al Repositorio
         const user = await this.userRepository.findById(id);
-
-        if (!user) {
-            throw new NotFoundException(`User with ID ${id} not found.`);
-        }
-
+        if (!user) throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
         return user;
     }
-    
-    async updateUser(id: string, data: UpdateUserDto, updatedBy: string) {
-        // Llama al Repositorio
-        const updatedUser = await this.userRepository.update(id, data);
 
-        this.logger.warn(`User ${id} updated by Admin ${updatedBy}`);
-        return updatedUser;
+    async updateUser(id: string, data: UpdateUserDto, updatedBy: string) {
+        const exists = await this.userRepository.findById(id);
+        if (!exists) throw new NotFoundException('Usuario no encontrado.');
+
+        return this.userRepository.update(id, data);
     }
 
     async deleteUser(id: string, deletedBy: string) {
         try {
-            // Llama al Repositorio
-            await this.userRepository.delete(id);
-            this.logger.warn(`User ${id} permanently deleted by Admin ${deletedBy}`);
+        await this.userRepository.delete(id);
+        return { message: `Usuario ${id} eliminado por Admin ${deletedBy}` };
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-                throw new NotFoundException(`User with ID ${id} not found.`);
-            }
-            throw error;
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+            throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
+        }
+        throw new BadRequestException('Error al eliminar el usuario.');
         }
     }
 
     // =========================================================================
-    // RUTAS DE ESTADÍSTICAS
+    // ESTADÍSTICAS
 
     async getUserStats(userId: string) {
-        // Llama al Repositorio
         const user = await this.userRepository.findUserWithProfileData(userId);
+        if (!user) throw new NotFoundException('Usuario no encontrado.');
 
-        if (!user) {
-            throw new NotFoundException('User not found');
-        }
-
-        let stats: any = {};
-
-        switch (user.role) {
-        case UserRole.COMERCIANTE:
-            stats = {
-            // totalOrders: user.comerciante?.totalOrders ?? 0,
-            // totalRevenue: user.comerciante?.totalRevenue ?? 0,
-            // averageRating: user.comerciante?.averageRating ?? 0,
-            // reviewCount: user.comerciante?.reviewCount ?? 0,
-            };
-            break;
-        // ... otros roles (FABRICANTE, LOGISTICA, PROVEEDOR)
-        }
-
-        const accountAgeDays = Math.floor((Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        const accountAgeDays = Math.floor(
+        (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24),
+        );
 
         return {
-            stats,
-            role: user.role,
-            accountAge: accountAgeDays,
+        role: user.role,
+        accountAge: accountAgeDays,
+        stats: {}, // Aquí puedes agregar estadísticas según el rol
         };
     }
 }

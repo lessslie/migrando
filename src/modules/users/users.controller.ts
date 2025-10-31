@@ -26,6 +26,7 @@ import type { UserPayload } from 'src/modules/auth/interfaces/user-payload.inter
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
+    
     constructor(private readonly usersService: UsersService) {}
 
     // Perfil del usuario autenticado

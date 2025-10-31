@@ -4,26 +4,23 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
-  Inject,
 } from '@nestjs/common';
 import { AuthLib } from './auth.lib';
 import type { RegisterDto } from './dto/register.dto';
 import type { LoginDto } from './dto/signIn.dto';
 import type { RefreshTokenDto } from './dto/refresh-token.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
-import type { IUserRepository } from '../users/user.repository.interface';
-import { USER_REPOSITORY } from '../users/user.repository.interface';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Response } from 'express';
+import { UserRepository } from '../users/user.repository';
 
 @Injectable()
 export class AuthService {
   private googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
   constructor(
-    @Inject(USER_REPOSITORY)
-    private readonly userRepository: IUserRepository,
+    private readonly userRepository: UserRepository,
     private readonly authLib: AuthLib,
     private readonly prisma: PrismaService,
   ) {}
@@ -79,9 +76,9 @@ export class AuthService {
       if (!user) throw new UnauthorizedException('Invalid token');
 
       const accessToken = await this.authLib.generateToken({
-        id: user.id!,
-        email: user.email!,
-        role: user.role!,
+        id: user.id,
+        email: user.email,
+        role: user.role,
       });
       return { accessToken };
     } catch {

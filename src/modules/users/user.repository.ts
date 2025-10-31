@@ -1,9 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { IUserRepository } from './user.repository.interface';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
-import type { Prisma, User } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 const DEFAULT_SELECT = {
     id: true,
@@ -20,15 +19,17 @@ const DEFAULT_SELECT = {
 };
 
 @Injectable()
-export class UserRepository implements IUserRepository {
+export class UserRepository {
     constructor(private readonly prisma: PrismaService) {}
 
     // =========================================================================
-    // MÉTODOS PARA AUTH SERVICE
+    // AUTH
 
     async findByEmail(email: string) {
-        return this.prisma.user.findUnique({ where: { email } });
-  }
+        return this.prisma.user.findFirst({
+        where: { email, deletedAt: null },
+        });
+    }
 
     async findOrCreateByGoogle(email: string, name: string, avatar?: string) {
         const existing = await this.findByEmail(email);
@@ -38,29 +39,30 @@ export class UserRepository implements IUserRepository {
         const lastName = rest.join(' ');
 
         return this.prisma.user.create({
-            data: {
-                email,
-                firstName,
-                lastName,
-                avatar,
-                password: '', // no password for OAuth
-                emailVerified: true,
-                role: 'COMERCIANTE', // por defecto en Fabriconnect
-            },
-        });
-    }
-
-    async create(data: Prisma.UserCreateInput): Promise<User> {
-        // Devuelve usuario sin la contraseña
-        const result = await this.prisma.user.create({
-        data,
+        data: {
+            email,
+            firstName,
+            lastName,
+            avatar,
+            password: '',
+            emailVerified: true,
+            role: 'COMERCIANTE',
+        },
         select: DEFAULT_SELECT,
         });
-        return result as unknown as User;
     }
 
-    // =========================================================================
-    // MÉTODOS PARA USER SERVICE
+    async create(
+        data: Prisma.UserCreateInput,
+        ): Promise<Prisma.UserGetPayload<{ select: typeof DEFAULT_SELECT }>> {
+        return this.prisma.user.create({
+            data,
+            select: DEFAULT_SELECT,
+        });
+    }
+
+  // =========================================================================
+  // USERS SERVICE
 
     async findUserWithProfileData(userId: string) {
         return this.prisma.user.findUnique({
@@ -74,44 +76,48 @@ export class UserRepository implements IUserRepository {
         });
     }
 
-    async updateProfile(userId: string, data: UpdateProfileDto) {
-        return this.prisma.user.update({
-        where: { id: userId },
-        data,
-        select: DEFAULT_SELECT,
-        });
-    }
-
-    async findAll(where: Prisma.UserWhereInput, skip: number, take: number) {
-        const [usersData, totalCount] = await this.prisma.$transaction([
-        this.prisma.user.findMany({
-            skip,
-            take,
-            orderBy: { createdAt: 'desc' },
-            select: {
-            ...DEFAULT_SELECT,
-            comerciante: true,
-            fabricante: true,
-            logistica: true,
-            proveedor: true,
-            },
-            where,
-        }),
-        this.prisma.user.count({ where }),
-        ]);
-        return { users: usersData, totalCount };
-    }
-
     async findById(id: string) {
         return this.prisma.user.findUnique({
         where: { id },
-        select: {
-            ...DEFAULT_SELECT,
+        include: {
             comerciante: true,
             fabricante: true,
             logistica: true,
             proveedor: true,
         },
+        });
+    }
+
+    async findAll(where: Prisma.UserWhereInput, skip: number, take: number) {
+        const baseFilter: Prisma.UserWhereInput = {
+        ...where,
+        deletedAt: null,
+        };
+
+        const [users, totalCount] = await this.prisma.$transaction([
+        this.prisma.user.findMany({
+            skip,
+            take,
+            where: baseFilter,
+            orderBy: { createdAt: 'desc' },
+            include: {
+            comerciante: true,
+            fabricante: true,
+            logistica: true,
+            proveedor: true,
+            },
+        }),
+        this.prisma.user.count({ where: baseFilter }),
+        ]);
+
+        return { users, totalCount };
+    }
+
+    async updateProfile(userId: string, data: UpdateProfileDto) {
+        return this.prisma.user.update({
+        where: { id: userId },
+        data,
+        select: DEFAULT_SELECT,
         });
     }
 
@@ -123,7 +129,26 @@ export class UserRepository implements IUserRepository {
         });
     }
 
+    // =========================================================================
+    // SOFT DELETE
+
     async delete(id: string) {
-        await this.prisma.user.delete({ where: { id } });
+        const exists = await this.findById(id);
+        if (!exists) throw new NotFoundException('Usuario no encontrado.');
+
+        await this.prisma.user.update({
+        where: { id },
+        data: { deletedAt: new Date(), isActive: false },
+        });
+    }
+
+    async restore(id: string) {
+        const exists = await this.findById(id);
+        if (!exists) throw new NotFoundException('Usuario no encontrado.');
+
+        await this.prisma.user.update({
+        where: { id },
+        data: { deletedAt: null, isActive: true },
+        });
     }
 }
