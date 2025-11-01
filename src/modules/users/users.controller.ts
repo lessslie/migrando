@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
     Controller,
     Get,
@@ -8,6 +8,8 @@ import {
     Param,
     Query,
     Delete,
+    Patch,
+    Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -84,6 +86,17 @@ export class UsersController {
     ) {
         return this.usersService.deleteUser(id, admin.userId);
     }
+
+    @Patch(':id/restore')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    async restoreUser(
+        @Param('id') id: string,
+        @Req() req,
+        ) {
+            const restoredBy = req.user?.id; // id del admin que ejecuta la acción
+            return this.usersService.restoreUser(id, restoredBy);
+        }
 
     // Estadísticas
     @Get('stats')

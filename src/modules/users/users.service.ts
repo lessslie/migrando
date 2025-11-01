@@ -75,12 +75,21 @@ export class UsersService {
     async deleteUser(id: string, deletedBy: string) {
         try {
         await this.userRepository.delete(id);
-        return { message: `Usuario ${id} eliminado por Admin ${deletedBy}` };
+        return { message: `Usuario eliminado correctamente.` };
         } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-            throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
+            throw new BadRequestException('Error al eliminar el usuario.');
         }
-        throw new BadRequestException('Error al eliminar el usuario.');
+    }
+
+    async restoreUser(id: string, restoredBy: string) {
+        try {
+            await this.userRepository.restore(id);
+            return { message: `Usuario ${id} restaurado por Admin ${restoredBy}` };
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+            throw error;
+            }
+            throw new BadRequestException('Error al restaurar el usuario.');
         }
     }
 
