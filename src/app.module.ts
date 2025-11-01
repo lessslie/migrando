@@ -6,6 +6,7 @@ import config from './config/configuration';
 import { configValidationSchema } from './config/configuration.schema';
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
+import { ComercianteModule } from './modules/comerciante/comerciante.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ProductsModule } from './modules/products/products.module';
     AuthModule,
     UsersModule,
     ProductsModule,
+    ComercianteModule,
   ],
 })
 export class AppModule {}

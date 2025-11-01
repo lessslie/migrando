@@ -7,6 +7,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =================================================================
+// ENUMS
+// =================================================================
+
+enum UserRole {
+  ADMIN
+  COMERCIANTE
+  FABRICANTE
+  PROVEEDOR
+  LOGISTICA
+}
+
+enum OrderStatus {
+  PENDIENTE
+  PROCESANDO
+  CONFIRMADO
+  EN_PRODUCCION 
+  LISTO_PARA_ENVIO 
+  ENVIADO
+  ENTREGADO
+  CANCELADO
+}
+
+enum ShipmentStatus {
+  PENDIENTE
+  EN_TRANSITO
+  ENTREGADO
+  FALLIDO
+}
+
+// =================================================================
+// 1. ENTIDADES DE USUARIO Y AUTENTICACIÓN
+// =================================================================
+
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
@@ -61,7 +95,11 @@ model Comerciante {
   website      String?
   logo         String?
   description  String?
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt   DateTime?   // null = activo, fecha = eliminado
+  
   favorites    Favorite[]
   inventory    InventoryItem[]
   orders       Order[]
@@ -82,6 +120,10 @@ model Fabricante {
   logo        String?
   description String?
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt   DateTime?   // null = activo, fecha = eliminado
+
   orders      Order[]
   products    Product[]
 
@@ -100,6 +142,10 @@ model Proveedor {
   website     String?
   logo        String?
   description String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt   DateTime?   // null = activo, fecha = eliminado
+
   materials   Material[]
   orders      Order[]
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -120,12 +166,20 @@ model Logistica {
   logo        String?
   description String?
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?   // null = activo, fecha = eliminado
+
   orders      Order[]
   shipments   Shipment[]
 
   @@map("logistica")
   @@index([ruc])
 }
+
+// =================================================================
+// 3. ENTIDADES DE CATÁLOGO Y STOCK
+// =================================================================
 
 model Product {
   id             String          @id @default(cuid())
@@ -141,6 +195,8 @@ model Product {
   isActive       Boolean         @default(true)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  deletedAt       DateTime?       // SOFT DELETE
+
   favorites      Favorite[]
   inventoryItems InventoryItem[]
   orderItems     OrderItem[]
@@ -165,56 +221,14 @@ model Material {
   proveedorId String
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  deletedAt       DateTime?       // SOFT DELETE
   proveedor   Proveedor   @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+
   orderItems  OrderItem[]
 
   @@map("materials")
   @@index([proveedorId])
   @@index([category])
-}
-
-model Order {
-  id            String      @id @default(cuid())
-  orderNumber   String      @unique
-  status        OrderStatus @default(PENDIENTE)
-  totalAmount   Decimal     @default(0)
-  currency      String      @default("USD")
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  comercianteId String
-  fabricanteId  String?
-  proveedorId   String?
-  logisticaId   String?
-  orderItems    OrderItem[]
-  shipments     Shipment[]
-  comerciante   Comerciante @relation(fields: [comercianteId], references: [id])
-  fabricante    Fabricante? @relation(fields: [fabricanteId], references: [id])
-  logistica     Logistica?  @relation(fields: [logisticaId], references: [id])
-  proveedor     Proveedor?  @relation(fields: [proveedorId], references: [id])
-
-  @@map("orders")
-  @@index([orderNumber])
-  @@index([comercianteId])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model OrderItem {
-  id         String    @id @default(cuid())
-  orderId    String
-  productId  String?
-  materialId String?
-  quantity   Int       @default(1)
-  unitPrice  Decimal   @default(0)
-  totalPrice Decimal   @default(0)
-  material   Material? @relation(fields: [materialId], references: [id])
-  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product    Product?  @relation(fields: [productId], references: [id])
-
-  @@map("order_items")
-  @@index([orderId])
-  @@index([productId])
-  @@index([materialId])
 }
 
 model Favorite {
@@ -247,6 +261,61 @@ model InventoryItem {
   @@index([comercianteId])
   @@index([productId])
 }
+
+// =================================================================
+// 4. ENTIDADES DE ÓRDENES Y TRANSACCIÓN
+// =================================================================
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  status        OrderStatus @default(PENDIENTE)
+  totalAmount   Decimal     @default(0)
+  currency      String      @default("USD")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?       // SOFT DELETE
+  comercianteId String
+  fabricanteId  String?
+  proveedorId   String?
+  logisticaId   String?
+
+  orderItems    OrderItem[]
+  shipments     Shipment[]
+
+  comerciante   Comerciante @relation(fields: [comercianteId], references: [id])
+  fabricante    Fabricante? @relation(fields: [fabricanteId], references: [id])
+  logistica     Logistica?  @relation(fields: [logisticaId], references: [id])
+  proveedor     Proveedor?  @relation(fields: [proveedorId], references: [id])
+
+  @@map("orders")
+  @@index([orderNumber])
+  @@index([comercianteId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id         String    @id @default(cuid())
+  orderId    String
+  productId  String?
+  materialId String?
+  quantity   Int       @default(1)
+  unitPrice  Decimal   @default(0)
+  totalPrice Decimal   @default(0)
+  material   Material? @relation(fields: [materialId], references: [id])
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product?  @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+  @@index([orderId])
+  @@index([productId])
+  @@index([materialId])
+}
+
+// =================================================================
+// 7. ENTIDADES DE LOGÍSTICA (Logística)
+// =================================================================
 
 model Shipment {
   id             String         @id @default(cuid())
@@ -281,26 +350,3 @@ model Notification {
   @@index([read])
 }
 
-enum UserRole {
-  ADMIN
-  COMERCIANTE
-  FABRICANTE
-  PROVEEDOR
-  LOGISTICA
-}
-
-enum OrderStatus {
-  PENDIENTE
-  PROCESANDO
-  CONFIRMADO
-  ENVIADO
-  ENTREGADO
-  CANCELADO
-}
-
-enum ShipmentStatus {
-  PENDIENTE
-  EN_TRANSITO
-  ENTREGADO
-  FALLIDO
-}
